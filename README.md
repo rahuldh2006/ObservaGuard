@@ -13,9 +13,10 @@ ObservaGuard is a self-contained log-ingestion and anomaly-detection platform bu
 - **Statistical anomaly detection** — Z-score-based spike detection per service window; fires `ERROR_SPIKE`, `CRITICAL_BURST`, and `ERROR_RATE_HIGH` alerts
 - **Webhook alert system** — alerts POST to a configurable webhook endpoint; built-in mock receiver included
 - **Live dashboard** — auto-refreshing HTML dashboard showing health per service, error-rate charts, and recent alerts
+- **Reset button** — one-click wipe of all data from the dashboard header; the server keeps running so you can start a fresh demo immediately
 - **Log traffic simulator** — built-in simulator with `normal`, `spike`, `chaos`, and `demo` scenarios for testing
 - **One-command startup** — `start.bat` (Windows) or `start.sh` (Linux/macOS) installs dependencies, starts the server, and runs the demo simulation
-- **Full unit test suite** — 50+ tests across the parser, detector, API, and alert manager
+- **114 automated tests** — full coverage across the parser, detector, API, alert manager, and reset/stats endpoints
 
 ---
 
@@ -73,16 +74,16 @@ python simulator.py --scenario demo --port 8080
 The dashboard at `/dashboard` auto-refreshes every **10 seconds**.
 
 ### Header
-Displays the overall system status badge — **HEALTHY** (green), **WARNING** (yellow), or **DEGRADED** (red) — derived from the worst status across all monitored services. Also shows the auto-refresh interval.
+Displays the overall system status badge — **HEALTHY** (green), **WARNING** (yellow), or **DEGRADED** (red) — derived from the worst status across all monitored services. Also shows the auto-refresh interval and the **Reset Data** button.
 
 ### KPI Cards
 Four at-a-glance counters updated on every refresh:
 
 | Card | What it shows |
 |---|---|
-| **Total Logs Ingested** | Sum of `total_logs` across all metric snapshots in the last 60 minutes |
+| **Total Logs Ingested** | True all-time count of `LogEntry` rows from the database (via `/stats`) |
 | **Active Alerts (10m)** | Number of `AlertEvent` rows triggered in the last 10 minutes |
-| **Services Monitored** | Count of distinct services that have sent at least one log |
+| **Services Monitored** | Count of distinct services that have sent at least one log (via `/stats`) |
 | **Peak Error Rate (1h)** | Highest error-rate percentage seen across all services in the rolling 60-minute window; turns yellow above 20 %, red above 55 % |
 
 ### Error Rate % — Rolling 60 min
@@ -97,6 +98,11 @@ A per-service status bar grid. For each known service it shows:
 
 ### Anomaly Z-Score — Rolling 60 min
 A multi-line chart showing the statistical Z-score per service over the last 60 minutes. A **dashed red threshold line at 2.5 σ** marks the anomaly trigger boundary. Values above this line indicate a statistically significant error spike relative to the historical baseline.
+
+### Reset Data Button
+A **Reset Data** button sits in the dashboard header (top-right, beside the status badge). Clicking it opens a confirmation modal listing everything that will be deleted. On confirmation, it calls `POST /reset`, wipes the database, clears the in-memory webhook buffer, and instantly refreshes all panels and charts — the server never restarts. Use this to start a clean demo run without needing to restart the process.
+
+> **Warning:** The reset is permanent and immediate. There is no undo.
 
 ### Webhook Feed
 A live scrolling feed of the **20 most recent** inbound webhook payloads received at `/webhook/receive`. Each entry shows:
@@ -150,8 +156,24 @@ Returns recent alert events with webhook delivery status.
 ### GET `/services`
 Lists all services that have ingested logs.
 
+### GET `/stats`
+Returns accurate all-time aggregate counts from the database.
+```json
+{ "total_logs": 1234, "total_alerts": 56, "total_services": 6, "webhook_count": 20 }
+```
+
+### POST `/reset`
+Deletes every row from `log_entries`, `metric_snapshots`, and `alert_events`, and clears the in-memory webhook history. The server keeps running. Returns a summary of what was deleted.
+```json
+{
+  "status": "reset",
+  "cleared": { "log_entries": 1234, "metric_snapshots": 200, "alert_events": 56, "webhook_history": 20 },
+  "reset_at": "2024-01-15T12:34:56"
+}
+```
+
 ### POST `/webhook/receive`
-Mock webhook receiver — stores incoming alert payloads in memory.
+Mock webhook receiver — stores incoming alert payloads in memory (capped at 100 entries).
 
 ### GET `/webhook/history`
 Returns the last 20 received webhook payloads.

@@ -26,10 +26,12 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
       font-size: 14px;
     }
+
+    /* ── Header ── */
     header {
       background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 14px 24px;
+      padding: 12px 24px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -43,10 +45,114 @@
       font-weight: 700;
       letter-spacing: 1px;
     }
-    .status-HEALTHY  { background: #0d3b1a; color: var(--green); border: 1px solid var(--green); }
+    .status-HEALTHY  { background: #0d3b1a; color: var(--green);  border: 1px solid var(--green); }
     .status-WARNING  { background: #3b2d0d; color: var(--yellow); border: 1px solid var(--yellow); }
-    .status-DEGRADED { background: #3b1010; color: var(--red); border: 1px solid var(--red); }
+    .status-DEGRADED { background: #3b1010; color: var(--red);    border: 1px solid var(--red); }
     #refresh-info { color: var(--muted); font-size: 12px; }
+
+    /* ── Reset button ── */
+    #btn-reset {
+      background: transparent;
+      border: 1px solid #4a1010;
+      color: var(--red);
+      padding: 5px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s, border-color 0.15s;
+      user-select: none;
+    }
+    #btn-reset:hover  { background: #2e1010; border-color: var(--red); }
+    #btn-reset:active { opacity: 0.7; }
+    #btn-reset:disabled { opacity: 0.4; cursor: not-allowed; }
+    #btn-reset .spinner {
+      display: none;
+      width: 12px; height: 12px;
+      border: 2px solid #f8514944;
+      border-top-color: var(--red);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    #btn-reset.loading .spinner { display: inline-block; }
+    #btn-reset.loading .btn-label { display: none; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Confirmation modal ── */
+    #modal-overlay {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7);
+      backdrop-filter: blur(3px);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    #modal-overlay.open { display: flex; }
+    #modal-card {
+      background: var(--surface);
+      border: 1px solid #4a1010;
+      border-radius: 10px;
+      padding: 28px 32px;
+      max-width: 440px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    #modal-card h2 {
+      font-size: 17px;
+      color: var(--red);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #modal-card p  { font-size: 13px; color: var(--text); line-height: 1.6; margin-bottom: 8px; }
+    #modal-card ul { font-size: 12px; color: var(--muted); margin: 8px 0 20px 18px; line-height: 1.8; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+    #btn-cancel {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 7px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    #btn-cancel:hover { background: #21262d; }
+    #btn-confirm {
+      background: #3b1010;
+      border: 1px solid var(--red);
+      color: var(--red);
+      padding: 7px 18px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    #btn-confirm:hover { background: #5a1a1a; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 24px; right: 24px;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      z-index: 300;
+      max-width: 380px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: transform 0.25s ease, opacity 0.25s ease;
+      pointer-events: none;
+    }
+    #toast.show { transform: translateY(0); opacity: 1; }
+    #toast.success { background: #0d3b1a; border: 1px solid var(--green); color: var(--green); }
+    #toast.error   { background: #3b1010; border: 1px solid var(--red);   color: var(--red); }
 
     main { padding: 20px 24px; }
 
@@ -66,7 +172,7 @@
     .kv-red    { color: var(--red); }
     .kv-blue   { color: var(--blue); }
 
-    /* ── Two-column layout ── */
+    /* ── Two/three-column layouts ── */
     .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
     .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px; }
     .card {
@@ -108,10 +214,10 @@
       font-size: 10px;
       font-weight: 700;
     }
-    .badge-LOW      { background: #1c2a1c; color: var(--green); }
-    .badge-MEDIUM   { background: #2b2410; color: var(--yellow); }
-    .badge-HIGH     { background: #2e1810; color: var(--orange); }
-    .badge-CRITICAL { background: #2e1010; color: var(--red); }
+    .badge-LOW           { background: #1c2a1c; color: var(--green); }
+    .badge-MEDIUM        { background: #2b2410; color: var(--yellow); }
+    .badge-HIGH          { background: #2e1810; color: var(--orange); }
+    .badge-CRITICAL      { background: #2e1010; color: var(--red); }
     .badge-ERROR_SPIKE    { background: #10203e; color: var(--blue); }
     .badge-CRITICAL_BURST { background: #2e1010; color: var(--red); }
     .badge-ERROR_RATE_HIGH{ background: #2e2010; color: var(--orange); }
@@ -147,11 +253,37 @@
 </head>
 <body>
 
+<!-- ── Confirmation Modal ─────────────────────────────────────────────────── -->
+<div id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div id="modal-card">
+    <h2 id="modal-title">&#9888; Reset All Data?</h2>
+    <p>This will permanently delete everything from the current session:</p>
+    <ul>
+      <li>All ingested log entries</li>
+      <li>All metric snapshots &amp; chart history</li>
+      <li>All alert events</li>
+      <li>All webhook history</li>
+    </ul>
+    <p style="color:var(--muted);font-size:12px;">The server keeps running. You can ingest fresh logs immediately after.</p>
+    <div class="modal-actions">
+      <button id="btn-cancel" onclick="hideModal()">Cancel</button>
+      <button id="btn-confirm" onclick="confirmReset()">Reset Everything</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────────────────────── -->
+<div id="toast"></div>
+
 <header>
-  <h1>⚡ ObservaGuard <span>Intelligent Observability — SRE Dashboard</span></h1>
-  <div style="display:flex;align-items:center;gap:16px;">
+  <h1>&#9889; ObservaGuard <span>Intelligent Observability — SRE Dashboard</span></h1>
+  <div style="display:flex;align-items:center;gap:12px;">
     <div id="refresh-info">Auto-refresh: <strong>10s</strong></div>
-    <div id="overall-status" class="status-HEALTHY">● HEALTHY</div>
+    <button id="btn-reset" onclick="showModal()" title="Clear all data and start fresh">
+      <span class="spinner"></span>
+      <span class="btn-label">&#x1F5D1; Reset Data</span>
+    </button>
+    <div id="overall-status" class="status-HEALTHY">&#9679; HEALTHY</div>
   </div>
 </header>
 
@@ -161,22 +293,22 @@
   <div class="kpi-row">
     <div class="kpi-card">
       <div class="kpi-label">Total Logs Ingested</div>
-      <div class="kpi-value kv-blue" id="kpi-total">—</div>
+      <div class="kpi-value kv-blue" id="kpi-total">&#8212;</div>
       <div class="kpi-sub">all time</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Active Alerts (10m)</div>
-      <div class="kpi-value kv-red" id="kpi-alerts">—</div>
+      <div class="kpi-value kv-red" id="kpi-alerts">&#8212;</div>
       <div class="kpi-sub">last 10 minutes</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Services Monitored</div>
-      <div class="kpi-value kv-blue" id="kpi-services">—</div>
+      <div class="kpi-value kv-blue" id="kpi-services">&#8212;</div>
       <div class="kpi-sub">distinct services</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-label">Peak Error Rate (1h)</div>
-      <div class="kpi-value kv-yellow" id="kpi-peak">—</div>
+      <div class="kpi-value kv-yellow" id="kpi-peak">&#8212;</div>
       <div class="kpi-sub">across all services</div>
     </div>
   </div>
@@ -186,7 +318,7 @@
     <div class="card">
       <div class="card-title">
         <div class="dot" style="background:var(--blue)"></div>
-        Error Rate % — Rolling 60 min
+        Error Rate % &#8212; Rolling 60 min
       </div>
       <canvas id="chart-error-rate"></canvas>
     </div>
@@ -199,13 +331,13 @@
     </div>
   </div>
 
-  <!-- Z-Score Chart + Alert Table -->
+  <!-- Z-Score Chart + Webhook Feed -->
   <div class="grid-3">
     <div class="card">
       <div class="card-title">
         <div class="dot" style="background:var(--purple)"></div>
-        Anomaly Z-Score — Rolling 60 min
-        <span style="color:var(--red);font-size:10px;margin-left:auto;">— threshold: 2.5σ</span>
+        Anomaly Z-Score &#8212; Rolling 60 min
+        <span style="color:var(--red);font-size:10px;margin-left:auto;">&#8212; threshold: 2.5&#963;</span>
       </div>
       <canvas id="chart-zscore"></canvas>
     </div>
@@ -214,7 +346,9 @@
         <div class="dot" style="background:var(--yellow)"></div>
         Webhook Feed
       </div>
-      <div class="wh-feed" id="wh-feed"><div class="wh-entry" style="color:var(--muted)">Waiting for alerts...</div></div>
+      <div class="wh-feed" id="wh-feed">
+        <div class="wh-entry" style="color:var(--muted)">Waiting for alerts...</div>
+      </div>
     </div>
   </div>
 
@@ -240,7 +374,7 @@
           </tr>
         </thead>
         <tbody id="alert-tbody">
-          <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">No alerts yet — system is watching...</td></tr>
+          <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">No alerts yet &#8212; system is watching...</td></tr>
         </tbody>
       </table>
     </div>
@@ -249,7 +383,7 @@
 </main>
 
 <script>
-// ── Chart.js setup ────────────────────────────────────────────────────────────
+// ── Chart.js setup ─────────────────────────────────────────────────────────────
 const CHART_DEFAULTS = {
   responsive: true,
   maintainAspectRatio: true,
@@ -267,11 +401,11 @@ const CHART_DEFAULTS = {
   },
 };
 
-function makeChart(id, datasets, yLabel, yMax) {
+function makeChart(id, yLabel, yMax) {
   const ctx = document.getElementById(id).getContext('2d');
   return new Chart(ctx, {
     type: 'line',
-    data: { labels: [], datasets },
+    data: { labels: [], datasets: [] },
     options: {
       ...CHART_DEFAULTS,
       scales: {
@@ -279,7 +413,7 @@ function makeChart(id, datasets, yLabel, yMax) {
         y: {
           ...CHART_DEFAULTS.scales.y,
           title: { display: true, text: yLabel, color: '#8b949e', font: { size: 10 } },
-          max: yMax,
+          ...(yMax != null ? { max: yMax } : {}),
           min: 0,
         },
       },
@@ -298,20 +432,15 @@ function colorForSvc(svc) {
   return svcColorMap[svc];
 }
 
-// Error rate chart
-const errChart = makeChart('chart-error-rate', [], 'Error Rate %', 100);
-// Z-score chart
-const zChart   = makeChart('chart-zscore', [], 'Z-Score (σ)', null);
-
-// Add threshold line to z-score chart
-zChart.options.plugins.annotation = {};  // placeholder
+const errChart = makeChart('chart-error-rate', 'Error Rate %', 100);
+const zChart   = makeChart('chart-zscore',    'Z-Score (σ)',  null);
 
 function fmtTime(iso) {
   const d = new Date(iso);
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 
-function ensureDataset(chart, svc, color, fill) {
+function ensureDataset(chart, svc, color) {
   let ds = chart.data.datasets.find(d => d.label === svc);
   if (!ds) {
     ds = {
@@ -319,7 +448,7 @@ function ensureDataset(chart, svc, color, fill) {
       data: [],
       borderColor: color,
       backgroundColor: color + '22',
-      fill: fill,
+      fill: false,
       tension: 0.4,
       pointRadius: 2,
       borderWidth: 2,
@@ -329,7 +458,79 @@ function ensureDataset(chart, svc, color, fill) {
   return ds;
 }
 
-// ── Fetch & render ────────────────────────────────────────────────────────────
+// ── Modal & toast helpers ──────────────────────────────────────────────────────
+function showModal() {
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function hideModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+// Close modal when clicking the backdrop (outside the card)
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) hideModal();
+});
+
+let toastTimer = null;
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show ' + (type || 'success');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 3500);
+}
+
+// ── Reset logic ────────────────────────────────────────────────────────────────
+async function confirmReset() {
+  hideModal();
+  const btn = document.getElementById('btn-reset');
+  btn.disabled = true;
+  btn.classList.add('loading');
+
+  try {
+    const r = await fetch('/reset', { method: 'POST' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const data = await r.json();
+    const c = data.cleared;
+
+    // Wipe charts completely so old service lines don't linger
+    errChart.data.labels   = [];
+    errChart.data.datasets = [];
+    errChart.update('none');
+    zChart.data.labels   = [];
+    zChart.data.datasets = [];
+    zChart.update('none');
+
+    // Clear service colour cache so colours reassign cleanly
+    Object.keys(svcColorMap).forEach(k => delete svcColorMap[k]);
+
+    // Clear KPI cards immediately (don't wait for next refresh tick)
+    document.getElementById('kpi-total').textContent    = '0';
+    document.getElementById('kpi-alerts').textContent   = '0';
+    document.getElementById('kpi-services').textContent = '0';
+    document.getElementById('kpi-peak').textContent     = '0.0%';
+    document.getElementById('svc-health').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;padding:10px;">No services yet — ingest some logs.</div>';
+    document.getElementById('wh-feed').innerHTML =
+      '<div class="wh-entry" style="color:var(--muted)">Waiting for alerts...</div>';
+    document.getElementById('alert-tbody').innerHTML =
+      '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">No alerts yet &#8212; system is watching...</td></tr>';
+    document.getElementById('overall-status').textContent = '● HEALTHY';
+    document.getElementById('overall-status').className   = 'status-HEALTHY';
+
+    const msg = `Reset complete — cleared ${c.log_entries} logs, ${c.alert_events} alerts, ${c.metric_snapshots} snapshots`;
+    showToast(msg, 'success');
+
+    // Pull fresh data
+    await refresh();
+  } catch (e) {
+    showToast('Reset failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+// ── Fetch & render ─────────────────────────────────────────────────────────────
 async function fetchJSON(url) {
   const r = await fetch(url);
   if (!r.ok) throw new Error(r.statusText);
@@ -338,37 +539,38 @@ async function fetchJSON(url) {
 
 async function refresh() {
   try {
-    const [health, metrics, alerts, webhooks] = await Promise.all([
+    const [health, metrics, alerts, webhooks, stats] = await Promise.all([
       fetchJSON('/health'),
       fetchJSON('/metrics?minutes=60'),
       fetchJSON('/alerts?limit=30'),
       fetchJSON('/webhook/history'),
+      fetchJSON('/stats'),
     ]);
 
-    // ── Overall status badge ──────────────────────────────────────────────────
+    // ── Overall status badge ────────────────────────────────────────────────────
     const badge = document.getElementById('overall-status');
     badge.textContent = '● ' + health.overall_status;
     badge.className   = 'status-' + health.overall_status;
 
-    // ── KPI cards ─────────────────────────────────────────────────────────────
-    const totalLogs = metrics.data.reduce((s, d) => s + d.total_logs, 0);
-    document.getElementById('kpi-total').textContent    = totalLogs.toLocaleString();
+    // ── KPI cards ───────────────────────────────────────────────────────────────
+    // Use /stats for accurate all-time log count (not window-sum from MetricSnapshot)
+    document.getElementById('kpi-total').textContent    = stats.total_logs.toLocaleString();
     document.getElementById('kpi-alerts').textContent   = health.active_alerts;
-    document.getElementById('kpi-services').textContent = health.services.length;
+    document.getElementById('kpi-services').textContent = stats.total_services;
     const peakRate = metrics.data.reduce((m, d) => Math.max(m, d.error_rate), 0);
-    document.getElementById('kpi-peak').textContent     = peakRate.toFixed(1) + '%';
     const peakEl = document.getElementById('kpi-peak');
+    peakEl.textContent = peakRate.toFixed(1) + '%';
     peakEl.className = 'kpi-value ' + (peakRate > 55 ? 'kv-red' : peakRate > 20 ? 'kv-yellow' : 'kv-green');
 
-    // ── Service health sidebar ────────────────────────────────────────────────
+    // ── Service health sidebar ──────────────────────────────────────────────────
     const svcDiv = document.getElementById('svc-health');
     svcDiv.innerHTML = '';
     if (health.services.length === 0) {
       svcDiv.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px;">No services yet — ingest some logs.</div>';
     }
     for (const svc of health.services) {
-      const color = colorForSvc(svc.service);
-      const barW  = Math.min(svc.error_rate, 100);
+      const color    = colorForSvc(svc.service);
+      const barW     = Math.min(svc.error_rate, 100);
       const barColor = svc.error_rate > 50 ? 'var(--red)' : svc.error_rate > 20 ? 'var(--yellow)' : 'var(--green)';
       svcDiv.innerHTML += `
         <div class="svc-row">
@@ -383,14 +585,12 @@ async function refresh() {
         </div>`;
     }
 
-    // ── Error rate & Z-score charts ───────────────────────────────────────────
+    // ── Error rate & Z-score charts ─────────────────────────────────────────────
     const byService = {};
     for (const d of metrics.data) {
       if (!byService[d.service]) byService[d.service] = [];
       byService[d.service].push(d);
     }
-
-    // Build unified time labels
     const allTs = [...new Set(metrics.data.map(d => d.t))].sort();
     errChart.data.labels = allTs.map(fmtTime);
     zChart.data.labels   = allTs.map(fmtTime);
@@ -398,14 +598,13 @@ async function refresh() {
     for (const [svc, rows] of Object.entries(byService)) {
       const color = colorForSvc(svc);
       const tsMap = Object.fromEntries(rows.map(r => [r.t, r]));
-
-      const errDs = ensureDataset(errChart, svc, color, false);
-      const zDs   = ensureDataset(zChart,   svc, color, false);
+      const errDs = ensureDataset(errChart, svc, color);
+      const zDs   = ensureDataset(zChart,   svc, color);
       errDs.data  = allTs.map(t => tsMap[t]?.error_rate ?? null);
       zDs.data    = allTs.map(t => tsMap[t]?.z_score    ?? null);
     }
 
-    // Threshold line on z-chart (fake dataset)
+    // Threshold line on z-chart
     let thrDs = zChart.data.datasets.find(d => d.label === '⚠ Threshold 2.5σ');
     if (!thrDs) {
       thrDs = {
@@ -425,10 +624,10 @@ async function refresh() {
     errChart.update();
     zChart.update();
 
-    // ── Alert table ────────────────────────────────────────────────────────────
+    // ── Alert table ─────────────────────────────────────────────────────────────
     const tbody = document.getElementById('alert-tbody');
     if (alerts.alerts.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">No alerts yet — system is watching...</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">No alerts yet &#8212; system is watching...</td></tr>';
     } else {
       tbody.innerHTML = alerts.alerts.map(a => `
         <tr>
@@ -437,13 +636,13 @@ async function refresh() {
           <td><span class="badge badge-${a.alert_type}">${a.alert_type}</span></td>
           <td><span class="badge badge-${a.severity}">${a.severity}</span></td>
           <td style="color:${a.error_rate>50?'var(--red)':a.error_rate>20?'var(--yellow)':'var(--green)'}">${a.error_rate}%</td>
-          <td style="color:var(--purple)">${(a.z_score||0).toFixed(2)}σ</td>
-          <td>${a.webhook_fired ? (a.webhook_status===200?'<span style="color:var(--green)">✓ '+a.webhook_status+'</span>':'<span style="color:var(--yellow)">'+a.webhook_status+'</span>') : '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="color:var(--purple)">${(a.z_score||0).toFixed(2)}&#963;</td>
+          <td>${a.webhook_fired ? (a.webhook_status===200 ? '<span style="color:var(--green)">&#10003; '+a.webhook_status+'</span>' : '<span style="color:var(--yellow)">'+a.webhook_status+'</span>') : '<span style="color:var(--muted)">&#8212;</span>'}</td>
           <td style="color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${a.message}">${a.message}</td>
         </tr>`).join('');
     }
 
-    // ── Webhook feed ───────────────────────────────────────────────────────────
+    // ── Webhook feed ────────────────────────────────────────────────────────────
     const whDiv = document.getElementById('wh-feed');
     if (webhooks.webhooks.length === 0) {
       whDiv.innerHTML = '<div class="wh-entry" style="color:var(--muted)">Waiting for alerts...</div>';
@@ -460,7 +659,6 @@ async function refresh() {
       }).join('');
     }
 
-    // Update timestamp
     document.getElementById('last-updated').textContent =
       'Last updated: ' + new Date().toLocaleTimeString();
 
@@ -469,7 +667,7 @@ async function refresh() {
   }
 }
 
-// Initial load + interval
+// Initial load + polling interval
 refresh();
 setInterval(refresh, 10000);
 </script>

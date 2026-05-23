@@ -8,10 +8,12 @@ Endpoints:
   GET  /health          — service health summary
   GET  /metrics         — time-series metric snapshots
   GET  /alerts          — alert history
+  GET  /stats           — aggregate counts (total logs, alerts, services)
+  GET  /services        — list known services
+  POST /reset           — wipe all data and start fresh
   GET  /dashboard       — HTML dashboard
   POST /webhook/receive — simulated webhook receiver (mock target)
   GET  /webhook/history — last 20 received webhook payloads
-  GET  /services        — list known services
 """
 
 import logging
@@ -45,6 +47,14 @@ logger = logging.getLogger("observaguard.main")
 # ── Templates — resolved relative to project root ────────────────────────────
 _BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 templates = Jinja2Templates(directory=os.path.join(_BASE_DIR, "templates"))
+
+# ── Service name normalisation ────────────────────────────────────────────────
+_MAX_SERVICE_LEN = 64
+
+def _norm_service(raw: str) -> str:
+    """Strip whitespace, truncate to 64 chars, fall back to 'default'."""
+    s = (raw or "").strip()[:_MAX_SERVICE_LEN]
+    return s if s else "default"
 
 
 # ── Startup / shutdown ────────────────────────────────────────────────────────
@@ -106,7 +116,7 @@ def _run_detection_pipeline(db: Session, service: str) -> dict:
 
 @app.post("/ingest", summary="Ingest a single log line")
 def ingest_log(req: LogIngestRequest, db: Session = Depends(get_db)):
-    parsed = parse_log_line(req.log_line, default_service=req.service)
+    parsed = parse_log_line(req.log_line, default_service=_norm_service(req.service))
     if not parsed:
         raise HTTPException(status_code=400, detail="Could not parse log line.")
 
@@ -132,7 +142,7 @@ def ingest_log(req: LogIngestRequest, db: Session = Depends(get_db)):
 
 @app.post("/ingest/bulk", summary="Ingest multiple log lines at once")
 def ingest_bulk(req: BulkIngestRequest, db: Session = Depends(get_db)):
-    parsed_list = parse_bulk(req.lines, default_service=req.service)
+    parsed_list = parse_bulk(req.lines, default_service=_norm_service(req.service))
     if not parsed_list:
         raise HTTPException(status_code=400, detail="No parseable log lines found.")
 
@@ -285,9 +295,65 @@ def get_services(db: Session = Depends(get_db)):
     return {"services": [r[0] for r in rows]}
 
 
+@app.get("/stats", summary="System-wide aggregate counts")
+def get_stats(db: Session = Depends(get_db)):
+    """
+    Returns true all-time counts from the database — not window-bounded.
+    Use this for the KPI 'Total Logs Ingested' on the dashboard.
+    """
+    total_logs     = db.query(func.count(LogEntry.id)).scalar() or 0
+    total_alerts   = db.query(func.count(AlertEvent.id)).scalar() or 0
+    total_services = db.query(LogEntry.service).distinct().count()
+    return {
+        "total_logs":     total_logs,
+        "total_alerts":   total_alerts,
+        "total_services": total_services,
+        "webhook_count":  len(_received_webhooks),
+    }
+
+
+@app.post("/reset", summary="Wipe all data and start fresh")
+def reset_all(db: Session = Depends(get_db)):
+    """
+    Deletes every row from LogEntry, MetricSnapshot, and AlertEvent tables,
+    and clears the in-memory webhook history.  Useful for starting a clean
+    demo run without restarting the server.
+    """
+    # Capture counts before deletion so the response is informative
+    log_count     = db.query(func.count(LogEntry.id)).scalar() or 0
+    metric_count  = db.query(func.count(MetricSnapshot.id)).scalar() or 0
+    alert_count   = db.query(func.count(AlertEvent.id)).scalar() or 0
+    webhook_count = len(_received_webhooks)
+
+    # Delete in FK-safe order
+    db.query(AlertEvent).delete()
+    db.query(MetricSnapshot).delete()
+    db.query(LogEntry).delete()
+    db.commit()
+
+    _received_webhooks.clear()
+
+    logger.warning(
+        "RESET: cleared %d log entries, %d metric snapshots, %d alerts, %d webhooks",
+        log_count, metric_count, alert_count, webhook_count,
+    )
+
+    return {
+        "status": "reset",
+        "cleared": {
+            "log_entries":      log_count,
+            "metric_snapshots": metric_count,
+            "alert_events":     alert_count,
+            "webhook_history":  webhook_count,
+        },
+        "reset_at": datetime.utcnow().isoformat(),
+    }
+
+
 # ── Routes: Webhook Mock Receiver ─────────────────────────────────────────────
 
 _received_webhooks: list[dict] = []   # in-memory store for demo
+_WEBHOOK_MAX = 100                    # cap to prevent unbounded memory growth
 
 
 @app.post("/webhook/receive", summary="Simulated webhook receiver")
@@ -303,6 +369,10 @@ async def webhook_receive(request: Request):
         "payload":     body,
     }
     _received_webhooks.append(entry)
+    # Keep only the most recent N entries so the list never grows unboundedly
+    if len(_received_webhooks) > _WEBHOOK_MAX:
+        del _received_webhooks[:-_WEBHOOK_MAX]
+
     logger.info(
         "[WEBHOOK RECEIVED] type=%s service=%s severity=%s",
         body.get("alert", {}).get("type", "?"),
@@ -321,7 +391,7 @@ def webhook_history():
 
 @app.get("/dashboard", response_class=HTMLResponse, summary="Live HTML Dashboard")
 def dashboard(request: Request):
-    return templates.TemplateResponse("dashboard.html", {"request": request})
+    return templates.TemplateResponse(request, "dashboard.html")
 
 
 @app.get("/", response_class=HTMLResponse)

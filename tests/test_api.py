@@ -252,3 +252,131 @@ class TestDashboard:
         # Root returns an HTML meta-refresh (200), not a 3xx
         assert r.status_code == 200
         assert b"dashboard" in r.content.lower()
+
+    def test_reset_button_present(self, client):
+        r = client.get("/dashboard")
+        assert b"btn-reset" in r.content or b"Reset" in r.content
+
+
+# ── /stats ─────────────────────────────────────────────────────────────────────
+
+class TestStats:
+    def test_empty_stats(self, client):
+        r = client.get("/stats")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["total_logs"] == 0
+        assert body["total_alerts"] == 0
+        assert body["total_services"] == 0
+        assert body["webhook_count"] == 0
+
+    def test_required_fields(self, client):
+        body = client.get("/stats").json()
+        for f in ("total_logs", "total_alerts", "total_services", "webhook_count"):
+            assert f in body
+
+    def test_logs_counted_after_ingest(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok", "ERROR bad"], "service": "svc"})
+        body = client.get("/stats").json()
+        assert body["total_logs"] == 2
+
+    def test_services_counted_after_ingest(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": "alpha"})
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": "beta"})
+        body = client.get("/stats").json()
+        assert body["total_services"] == 2
+
+    def test_webhook_count_in_stats(self, client):
+        payload = {"event": "x", "version": "1.0", "fired_at": "2024-01-15T12:00:00Z", "alert": {}}
+        client.post("/webhook/receive", json=payload)
+        client.post("/webhook/receive", json=payload)
+        body = client.get("/stats").json()
+        assert body["webhook_count"] == 2
+
+
+# ── /reset ─────────────────────────────────────────────────────────────────────
+
+class TestReset:
+    def test_reset_empty_db_succeeds(self, client):
+        r = client.post("/reset")
+        assert r.status_code == 200
+        body = r.json()
+        assert body["status"] == "reset"
+        assert body["cleared"]["log_entries"] == 0
+
+    def test_reset_response_fields(self, client):
+        r = client.post("/reset")
+        body = r.json()
+        assert "status" in body
+        assert "cleared" in body
+        assert "reset_at" in body
+        for f in ("log_entries", "metric_snapshots", "alert_events", "webhook_history"):
+            assert f in body["cleared"]
+
+    def test_reset_clears_log_entries(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok", "ERROR bad"], "service": "svc"})
+        assert client.get("/stats").json()["total_logs"] == 2
+        client.post("/reset")
+        assert client.get("/stats").json()["total_logs"] == 0
+
+    def test_reset_clears_metrics(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": "svc"})
+        client.post("/reset")
+        assert client.get("/metrics").json()["count"] == 0
+
+    def test_reset_clears_alerts(self, client):
+        # Ingest high-error batch to fire an alert
+        client.post("/ingest/bulk", json={"lines": ["ERROR x"] * 20, "service": "svc"})
+        client.post("/reset")
+        assert client.get("/alerts").json()["count"] == 0
+
+    def test_reset_clears_webhook_history(self, client):
+        payload = {"event": "x", "version": "1.0", "fired_at": "2024-01-15T12:00:00Z", "alert": {}}
+        client.post("/webhook/receive", json=payload)
+        assert client.get("/webhook/history").json()["count"] == 1
+        client.post("/reset")
+        assert client.get("/webhook/history").json()["count"] == 0
+
+    def test_reset_cleared_counts_match_rows_deleted(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok", "INFO ok", "INFO ok"], "service": "svc"})
+        r = client.post("/reset")
+        assert r.json()["cleared"]["log_entries"] == 3
+
+    def test_services_gone_after_reset(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": "my-svc"})
+        client.post("/reset")
+        assert client.get("/services").json()["services"] == []
+
+    def test_health_healthy_after_reset(self, client):
+        # Feed degraded traffic, then reset — health should return to HEALTHY
+        client.post("/ingest/bulk", json={"lines": ["ERROR x"] * 20, "service": "svc"})
+        client.post("/reset")
+        r = client.get("/health")
+        assert r.json()["overall_status"] == "HEALTHY"
+
+    def test_system_accepts_new_logs_after_reset(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": "old-svc"})
+        client.post("/reset")
+        r = client.post("/ingest", json={"log_line": "INFO fresh start", "service": "new-svc"})
+        assert r.status_code == 200
+        assert client.get("/stats").json()["total_logs"] == 1
+
+
+# ── Service name normalisation ─────────────────────────────────────────────────
+
+class TestServiceNormalisation:
+    def test_whitespace_stripped_from_service(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": "  my-svc  "})
+        svcs = client.get("/services").json()["services"]
+        assert "my-svc" in svcs
+        assert "  my-svc  " not in svcs
+
+    def test_empty_service_defaults_to_default(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": ""})
+        svcs = client.get("/services").json()["services"]
+        assert "default" in svcs
+
+    def test_whitespace_only_service_defaults_to_default(self, client):
+        client.post("/ingest/bulk", json={"lines": ["INFO ok"], "service": "   "})
+        svcs = client.get("/services").json()["services"]
+        assert "default" in svcs

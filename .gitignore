@@ -54,3 +54,5 @@ coverage.xml
 # --- Project-specific ---
 prompts.md
 sample_logs/
+ObservaGuard_Deck.pptx
+make_deck.py

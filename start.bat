@@ -46,7 +46,8 @@ echo       API Docs:  http://localhost:!PORT!/docs
 echo.
 
 REM Use "python -m uvicorn" so it works even if the Scripts dir is not in PATH
-start "ObservaGuard Server" cmd /k "cd /d %~dp0 && python -m uvicorn main:app --host 0.0.0.0 --port !PORT! --reload"
+REM Pass OBSERVAGUARD_PORT so alert_manager.py sends webhooks to the right port
+start "ObservaGuard Server" cmd /k "cd /d %~dp0 && set OBSERVAGUARD_PORT=!PORT! && python -m uvicorn app.main:app --host 0.0.0.0 --port !PORT! --reload"
 
 REM Poll until the server answers (up to 20 s, 1 s intervals)
 echo Waiting for server to start...

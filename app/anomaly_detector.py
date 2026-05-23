@@ -4,18 +4,15 @@ Uses statistical methods (Z-score + rolling window) to detect:
   1. ERROR_SPIKE       — sudden surge vs. historical baseline
   2. CRITICAL_BURST    — ≥N CRITICAL/FATAL events in short window
   3. ERROR_RATE_HIGH   — sustained high error percentage
-  4. SILENT_SERVICE    — expected service goes quiet (no logs)
 """
 
 import logging
-import math
 from datetime import datetime, timedelta
-from typing import Optional
 
 import numpy as np
 from sqlalchemy.orm import Session
 
-from models import LogEntry, MetricSnapshot, AlertEvent
+from .models import LogEntry, MetricSnapshot, AlertEvent
 
 logger = logging.getLogger("observaguard.detector")
 

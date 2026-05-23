@@ -5,7 +5,7 @@ Tables: LogEntry, AlertEvent, MetricSnapshot
 
 from datetime import datetime
 from sqlalchemy import Column, Integer, String, Float, DateTime, Boolean, Text
-from database import Base
+from .database import Base
 
 
 class LogEntry(Base):

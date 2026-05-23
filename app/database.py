@@ -3,10 +3,17 @@ ObservaGuard — Database Setup
 SQLite via SQLAlchemy. No external DB required.
 """
 
+import os
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
-DATABASE_URL = "sqlite:///./observaguard.db"
+# Resolve the project root (one level above this file's directory)
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_default_db = os.path.join(_BASE_DIR, "observaguard.db")
+
+# Allow override via environment variable (useful for testing)
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{_default_db}")
 
 engine = create_engine(
     DATABASE_URL,
@@ -32,6 +39,6 @@ def get_db():
 
 def init_db():
     """Create all tables on startup."""
-    from models import LogEntry, AlertEvent, MetricSnapshot  # noqa: F401
+    from .models import LogEntry, AlertEvent, MetricSnapshot  # noqa: F401
     Base.metadata.create_all(bind=engine)
     print("[DB] SQLite initialized — all tables ready.")

@@ -3,22 +3,24 @@ ObservaGuard — Webhook Alert Manager
 Fires simulated webhook POSTs when anomalies are detected.
 The webhook target is a local mock endpoint (/webhook/receive) running
 on the same FastAPI server — no external service required.
+
+The port is read from the OBSERVAGUARD_PORT environment variable so it
+automatically matches whatever port the server was started on.
 """
 
-import json
 import logging
-from datetime import datetime
-from typing import Optional
+import os
 
 import httpx
 from sqlalchemy.orm import Session
 
-from models import AlertEvent
+from .models import AlertEvent
 
 logger = logging.getLogger("observaguard.alerts")
 
-# ── Webhook target (local mock receiver) ─────────────────────────────────────
-WEBHOOK_URL     = "http://127.0.0.1:8000/webhook/receive"
+# ── Webhook target — resolves port from environment ───────────────────────────
+_PORT = os.environ.get("OBSERVAGUARD_PORT", "8080")
+WEBHOOK_URL     = f"http://127.0.0.1:{_PORT}/webhook/receive"
 WEBHOOK_TIMEOUT = 5.0   # seconds
 
 # Severity → emoji for log output
@@ -47,8 +49,8 @@ def _build_payload(alert: AlertEvent) -> dict:
             "window_total": alert.window_total,
             "message":      alert.message,
         },
-        "runbook": f"https://wiki.example.com/runbooks/{alert.alert_type.lower()}",
-        "dashboard": "http://127.0.0.1:8000/dashboard",
+        "runbook":   f"https://wiki.example.com/runbooks/{alert.alert_type.lower()}",
+        "dashboard": f"http://127.0.0.1:{_PORT}/dashboard",
     }
 
 
@@ -98,11 +100,11 @@ def process_alerts(db: Session, alerts: list[AlertEvent]) -> list[dict]:
     for alert in alerts:
         status = fire_webhook(db, alert)
         results.append({
-            "alert_id":      alert.id,
-            "alert_type":    alert.alert_type,
-            "severity":      alert.severity,
-            "service":       alert.service,
+            "alert_id":       alert.id,
+            "alert_type":     alert.alert_type,
+            "severity":       alert.severity,
+            "service":        alert.service,
             "webhook_status": status,
-            "message":       alert.message,
+            "message":        alert.message,
         })
     return results

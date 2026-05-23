@@ -221,7 +221,7 @@ def main():
             print(f"\n✓ API reachable (HTTP {r.status_code})")
         except Exception as e:
             print(f"\n✗ Cannot reach API at {API_BASE}: {e}")
-            print("  Make sure ObservaGuard is running:  uvicorn main:app --reload")
+            print("  Make sure ObservaGuard is running:  python -m uvicorn app.main:app --reload")
             sys.exit(1)
 
         svc = args.service or random.choice(SERVICES)

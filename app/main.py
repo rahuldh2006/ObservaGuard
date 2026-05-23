@@ -10,10 +10,12 @@ Endpoints:
   GET  /alerts          — alert history
   GET  /dashboard       — HTML dashboard
   POST /webhook/receive — simulated webhook receiver (mock target)
+  GET  /webhook/history — last 20 received webhook payloads
   GET  /services        — list known services
 """
 
 import logging
+import os
 import sys
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta
@@ -26,11 +28,11 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc
 
-from database import get_db, init_db
-from models import LogEntry, AlertEvent, MetricSnapshot
-from log_parser import parse_log_line, parse_bulk
-from anomaly_detector import detect_anomalies, record_metric_snapshot
-from alert_manager import process_alerts
+from .database import get_db, init_db
+from .models import LogEntry, AlertEvent, MetricSnapshot
+from .log_parser import parse_log_line, parse_bulk
+from .anomaly_detector import detect_anomalies, record_metric_snapshot
+from .alert_manager import process_alerts
 
 # ── Logging config ────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -39,6 +41,10 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger("observaguard.main")
+
+# ── Templates — resolved relative to project root ────────────────────────────
+_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+templates = Jinja2Templates(directory=os.path.join(_BASE_DIR, "templates"))
 
 
 # ── Startup / shutdown ────────────────────────────────────────────────────────
@@ -56,8 +62,6 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
-
-templates = Jinja2Templates(directory="templates")
 
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
@@ -156,9 +160,6 @@ def ingest_bulk(req: BulkIngestRequest, db: Session = Depends(get_db)):
 
 @app.get("/health", summary="Current health summary per service")
 def get_health(db: Session = Depends(get_db)):
-    since = datetime.utcnow() - timedelta(minutes=5)
-
-    # Latest snapshot per service
     subq = (
         db.query(
             MetricSnapshot.service,
@@ -195,7 +196,6 @@ def get_health(db: Session = Depends(get_db)):
             "snapshot_at": s.snapshot_at.isoformat(),
         })
 
-    # Active alerts in last 10 min
     alert_cutoff = datetime.utcnow() - timedelta(minutes=10)
     active_alerts = db.query(func.count(AlertEvent.id)).filter(
         AlertEvent.triggered_at >= alert_cutoff

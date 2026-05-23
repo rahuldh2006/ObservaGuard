@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ObservaGuard — SRE Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --border:   #30363d;
+      --text:     #c9d1d9;
+      --muted:    #8b949e;
+      --green:    #3fb950;
+      --yellow:   #d29922;
+      --orange:   #db6d28;
+      --red:      #f85149;
+      --blue:     #58a6ff;
+      --purple:   #bc8cff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", monospace;
+      font-size: 14px;
+    }
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header h1 { font-size: 18px; color: var(--blue); letter-spacing: 0.5px; }
+    header h1 span { color: var(--muted); font-weight: 400; font-size: 13px; margin-left: 10px; }
+    #overall-status {
+      padding: 4px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+    }
+    .status-HEALTHY  { background: #0d3b1a; color: var(--green); border: 1px solid var(--green); }
+    .status-WARNING  { background: #3b2d0d; color: var(--yellow); border: 1px solid var(--yellow); }
+    .status-DEGRADED { background: #3b1010; color: var(--red); border: 1px solid var(--red); }
+    #refresh-info { color: var(--muted); font-size: 12px; }
+
+    main { padding: 20px 24px; }
+
+    /* ── KPI cards ── */
+    .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+    .kpi-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .kpi-label { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; }
+    .kpi-value { font-size: 28px; font-weight: 700; margin-top: 6px; }
+    .kpi-sub   { color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .kv-green  { color: var(--green); }
+    .kv-yellow { color: var(--yellow); }
+    .kv-red    { color: var(--red); }
+    .kv-blue   { color: var(--blue); }
+
+    /* ── Two-column layout ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .grid-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card-title {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-title .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+    canvas { max-height: 220px; }
+
+    /* ── Alert table ── */
+    .alert-list { max-height: 300px; overflow-y: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { color: var(--muted); font-weight: 500; text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border); }
+    td { padding: 6px 8px; border-bottom: 1px solid #21262d; vertical-align: top; }
+    tr:last-child td { border-bottom: none; }
+    .badge {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 10px;
+      font-weight: 700;
+    }
+    .badge-LOW      { background: #1c2a1c; color: var(--green); }
+    .badge-MEDIUM   { background: #2b2410; color: var(--yellow); }
+    .badge-HIGH     { background: #2e1810; color: var(--orange); }
+    .badge-CRITICAL { background: #2e1010; color: var(--red); }
+    .badge-ERROR_SPIKE    { background: #10203e; color: var(--blue); }
+    .badge-CRITICAL_BURST { background: #2e1010; color: var(--red); }
+    .badge-ERROR_RATE_HIGH{ background: #2e2010; color: var(--orange); }
+
+    /* ── Service health grid ── */
+    .svc-grid { display: flex; flex-direction: column; gap: 8px; }
+    .svc-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #0d1117;
+      border: 1px solid var(--border);
+    }
+    .svc-name { font-weight: 600; }
+    .svc-rate { font-size: 12px; }
+    .svc-bar-wrap { flex: 1; margin: 0 14px; height: 6px; background: #21262d; border-radius: 3px; }
+    .svc-bar { height: 100%; border-radius: 3px; transition: width 0.5s; }
+
+    /* ── Webhook feed ── */
+    .wh-feed { max-height: 200px; overflow-y: auto; font-size: 11px; font-family: monospace; }
+    .wh-entry { padding: 6px 0; border-bottom: 1px solid #21262d; color: var(--muted); }
+    .wh-entry span { color: var(--blue); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    #last-updated { color: var(--muted); font-size: 11px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ ObservaGuard <span>Intelligent Observability — SRE Dashboard</span></h1>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div id="refresh-info">Auto-refresh: <strong>10s</strong></div>
+    <div id="overall-status" class="status-HEALTHY">● HEALTHY</div>
+  </div>
+</header>
+
+<main>
+
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-label">Total Logs Ingested</div>
+      <div class="kpi-value kv-blue" id="kpi-total">—</div>
+      <div class="kpi-sub">all time</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Active Alerts (10m)</div>
+      <div class="kpi-value kv-red" id="kpi-alerts">—</div>
+      <div class="kpi-sub">last 10 minutes</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Services Monitored</div>
+      <div class="kpi-value kv-blue" id="kpi-services">—</div>
+      <div class="kpi-sub">distinct services</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Peak Error Rate (1h)</div>
+      <div class="kpi-value kv-yellow" id="kpi-peak">—</div>
+      <div class="kpi-sub">across all services</div>
+    </div>
+  </div>
+
+  <!-- Error Rate Chart + Service Health -->
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">
+        <div class="dot" style="background:var(--blue)"></div>
+        Error Rate % — Rolling 60 min
+      </div>
+      <canvas id="chart-error-rate"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <div class="dot" style="background:var(--green)"></div>
+        Service Health
+      </div>
+      <div class="svc-grid" id="svc-health"></div>
+    </div>
+  </div>
+
+  <!-- Z-Score Chart + Alert Table -->
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title">
+        <div class="dot" style="background:var(--purple)"></div>
+        Anomaly Z-Score — Rolling 60 min
+        <span style="color:var(--red);font-size:10px;margin-left:auto;">— threshold: 2.5σ</span>
+      </div>
+      <canvas id="chart-zscore"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-title">
+        <div class="dot" style="background:var(--yellow)"></div>
+        Webhook Feed
+      </div>
+      <div class="wh-feed" id="wh-feed"><div class="wh-entry" style="color:var(--muted)">Waiting for alerts...</div></div>
+    </div>
+  </div>
+
+  <!-- Alert History Table -->
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-title">
+      <div class="dot" style="background:var(--red)"></div>
+      Alert Event Log
+      <span id="last-updated" style="margin-left:auto;"></span>
+    </div>
+    <div class="alert-list">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Service</th>
+            <th>Type</th>
+            <th>Severity</th>
+            <th>Error Rate</th>
+            <th>Z-Score</th>
+            <th>Webhook</th>
+            <th>Message</th>
+          </tr>
+        </thead>
+        <tbody id="alert-tbody">
+          <tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">No alerts yet — system is watching...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── Chart.js setup ────────────────────────────────────────────────────────────
+const CHART_DEFAULTS = {
+  responsive: true,
+  maintainAspectRatio: true,
+  animation: { duration: 400 },
+  plugins: { legend: { labels: { color: '#8b949e', font: { size: 11 } } } },
+  scales: {
+    x: {
+      ticks: { color: '#8b949e', maxTicksLimit: 8, font: { size: 10 } },
+      grid:  { color: '#21262d' },
+    },
+    y: {
+      ticks: { color: '#8b949e', font: { size: 10 } },
+      grid:  { color: '#21262d' },
+    },
+  },
+};
+
+function makeChart(id, datasets, yLabel, yMax) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line',
+    data: { labels: [], datasets },
+    options: {
+      ...CHART_DEFAULTS,
+      scales: {
+        ...CHART_DEFAULTS.scales,
+        y: {
+          ...CHART_DEFAULTS.scales.y,
+          title: { display: true, text: yLabel, color: '#8b949e', font: { size: 10 } },
+          max: yMax,
+          min: 0,
+        },
+      },
+    },
+  });
+}
+
+// Color per service
+const SERVICE_COLORS = ['#58a6ff','#3fb950','#d29922','#f85149','#bc8cff','#db6d28','#39d353'];
+const svcColorMap = {};
+function colorForSvc(svc) {
+  if (!svcColorMap[svc]) {
+    const idx = Object.keys(svcColorMap).length % SERVICE_COLORS.length;
+    svcColorMap[svc] = SERVICE_COLORS[idx];
+  }
+  return svcColorMap[svc];
+}
+
+// Error rate chart
+const errChart = makeChart('chart-error-rate', [], 'Error Rate %', 100);
+// Z-score chart
+const zChart   = makeChart('chart-zscore', [], 'Z-Score (σ)', null);
+
+// Add threshold line to z-score chart
+zChart.options.plugins.annotation = {};  // placeholder
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function ensureDataset(chart, svc, color, fill) {
+  let ds = chart.data.datasets.find(d => d.label === svc);
+  if (!ds) {
+    ds = {
+      label: svc,
+      data: [],
+      borderColor: color,
+      backgroundColor: color + '22',
+      fill: fill,
+      tension: 0.4,
+      pointRadius: 2,
+      borderWidth: 2,
+    };
+    chart.data.datasets.push(ds);
+  }
+  return ds;
+}
+
+// ── Fetch & render ────────────────────────────────────────────────────────────
+async function fetchJSON(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(r.statusText);
+  return r.json();
+}
+
+async function refresh() {
+  try {
+    const [health, metrics, alerts, webhooks] = await Promise.all([
+      fetchJSON('/health'),
+      fetchJSON('/metrics?minutes=60'),
+      fetchJSON('/alerts?limit=30'),
+      fetchJSON('/webhook/history'),
+    ]);
+
+    // ── Overall status badge ──────────────────────────────────────────────────
+    const badge = document.getElementById('overall-status');
+    badge.textContent = '● ' + health.overall_status;
+    badge.className   = 'status-' + health.overall_status;
+
+    // ── KPI cards ─────────────────────────────────────────────────────────────
+    const totalLogs = metrics.data.reduce((s, d) => s + d.total_logs, 0);
+    document.getElementById('kpi-total').textContent    = totalLogs.toLocaleString();
+    document.getElementById('kpi-alerts').textContent   = health.active_alerts;
+    document.getElementById('kpi-services').textContent = health.services.length;
+    const peakRate = metrics.data.reduce((m, d) => Math.max(m, d.error_rate), 0);
+    document.getElementById('kpi-peak').textContent     = peakRate.toFixed(1) + '%';
+    const peakEl = document.getElementById('kpi-peak');
+    peakEl.className = 'kpi-value ' + (peakRate > 55 ? 'kv-red' : peakRate > 20 ? 'kv-yellow' : 'kv-green');
+
+    // ── Service health sidebar ────────────────────────────────────────────────
+    const svcDiv = document.getElementById('svc-health');
+    svcDiv.innerHTML = '';
+    if (health.services.length === 0) {
+      svcDiv.innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px;">No services yet — ingest some logs.</div>';
+    }
+    for (const svc of health.services) {
+      const color = colorForSvc(svc.service);
+      const barW  = Math.min(svc.error_rate, 100);
+      const barColor = svc.error_rate > 50 ? 'var(--red)' : svc.error_rate > 20 ? 'var(--yellow)' : 'var(--green)';
+      svcDiv.innerHTML += `
+        <div class="svc-row">
+          <div>
+            <div class="svc-name" style="color:${color}">${svc.service}</div>
+            <div style="font-size:10px;color:var(--muted);">${svc.status}</div>
+          </div>
+          <div class="svc-bar-wrap">
+            <div class="svc-bar" style="width:${barW}%;background:${barColor}"></div>
+          </div>
+          <div class="svc-rate" style="color:${barColor}">${svc.error_rate}%</div>
+        </div>`;
+    }
+
+    // ── Error rate & Z-score charts ───────────────────────────────────────────
+    const byService = {};
+    for (const d of metrics.data) {
+      if (!byService[d.service]) byService[d.service] = [];
+      byService[d.service].push(d);
+    }
+
+    // Build unified time labels
+    const allTs = [...new Set(metrics.data.map(d => d.t))].sort();
+    errChart.data.labels = allTs.map(fmtTime);
+    zChart.data.labels   = allTs.map(fmtTime);
+
+    for (const [svc, rows] of Object.entries(byService)) {
+      const color = colorForSvc(svc);
+      const tsMap = Object.fromEntries(rows.map(r => [r.t, r]));
+
+      const errDs = ensureDataset(errChart, svc, color, false);
+      const zDs   = ensureDataset(zChart,   svc, color, false);
+      errDs.data  = allTs.map(t => tsMap[t]?.error_rate ?? null);
+      zDs.data    = allTs.map(t => tsMap[t]?.z_score    ?? null);
+    }
+
+    // Threshold line on z-chart (fake dataset)
+    let thrDs = zChart.data.datasets.find(d => d.label === '⚠ Threshold 2.5σ');
+    if (!thrDs) {
+      thrDs = {
+        label: '⚠ Threshold 2.5σ',
+        data: [],
+        borderColor: '#f8514966',
+        borderDash: [6, 4],
+        borderWidth: 1,
+        pointRadius: 0,
+        fill: false,
+        tension: 0,
+      };
+      zChart.data.datasets.push(thrDs);
+    }
+    thrDs.data = allTs.map(() => 2.5);
+
+    errChart.update();
+    zChart.update();
+
+    // ── Alert table ────────────────────────────────────────────────────────────
+    const tbody = document.getElementById('alert-tbody');
+    if (alerts.alerts.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="8" style="color:var(--muted);text-align:center;padding:20px;">No alerts yet — system is watching...</td></tr>';
+    } else {
+      tbody.innerHTML = alerts.alerts.map(a => `
+        <tr>
+          <td style="white-space:nowrap;color:var(--muted)">${fmtTime(a.triggered_at)}</td>
+          <td style="color:${colorForSvc(a.service)};font-weight:600">${a.service}</td>
+          <td><span class="badge badge-${a.alert_type}">${a.alert_type}</span></td>
+          <td><span class="badge badge-${a.severity}">${a.severity}</span></td>
+          <td style="color:${a.error_rate>50?'var(--red)':a.error_rate>20?'var(--yellow)':'var(--green)'}">${a.error_rate}%</td>
+          <td style="color:var(--purple)">${(a.z_score||0).toFixed(2)}σ</td>
+          <td>${a.webhook_fired ? (a.webhook_status===200?'<span style="color:var(--green)">✓ '+a.webhook_status+'</span>':'<span style="color:var(--yellow)">'+a.webhook_status+'</span>') : '<span style="color:var(--muted)">—</span>'}</td>
+          <td style="color:var(--muted);max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${a.message}">${a.message}</td>
+        </tr>`).join('');
+    }
+
+    // ── Webhook feed ───────────────────────────────────────────────────────────
+    const whDiv = document.getElementById('wh-feed');
+    if (webhooks.webhooks.length === 0) {
+      whDiv.innerHTML = '<div class="wh-entry" style="color:var(--muted)">Waiting for alerts...</div>';
+    } else {
+      whDiv.innerHTML = [...webhooks.webhooks].reverse().map(wh => {
+        const a = wh.payload?.alert || {};
+        return `<div class="wh-entry">
+          <span>${fmtTime(wh.received_at)}</span>
+          &nbsp;|&nbsp;<strong style="color:var(--red)">${a.type||'?'}</strong>
+          &nbsp;|&nbsp;${a.service||'?'}
+          &nbsp;|&nbsp;<span style="color:var(--yellow)">${a.severity||'?'}</span>
+          &nbsp;|&nbsp;rate: ${((a.error_rate||0)*100).toFixed(1)}%
+        </div>`;
+      }).join('');
+    }
+
+    // Update timestamp
+    document.getElementById('last-updated').textContent =
+      'Last updated: ' + new Date().toLocaleTimeString();
+
+  } catch (e) {
+    console.error('Dashboard refresh error:', e);
+  }
+}
+
+// Initial load + interval
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>
